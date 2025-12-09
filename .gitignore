@@ -27,8 +27,9 @@ Frontend/.pnp.js
 #        DOCKER
 # ============================
 
+#*********** Esto ignora el docker para github *************
 **/.dockerignore
-**/Dockerfile
+**/Dockerfile            
 !docker-compose.yml
 
 # ============================

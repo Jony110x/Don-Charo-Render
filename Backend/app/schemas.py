@@ -1,12 +1,51 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, List
+
+# Schemas para Usuarios
+class UsuarioBase(BaseModel):
+    username: str
+    email: EmailStr
+    nombre_completo: Optional[str] = None
+    rol: str = "cajero"
+
+class UsuarioCreate(UsuarioBase):
+    password: str
+
+class UsuarioLogin(BaseModel):
+    username: str
+    password: str
+
+class Usuario(UsuarioBase):
+    id: int
+    activo: bool
+    fecha_creacion: datetime
+    ultimo_acceso: Optional[datetime]
+    
+    class Config:
+        from_attributes = True
+
+class UsuarioResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    nombre_completo: Optional[str]
+    rol: str
+    
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UsuarioResponse
 
 # Schemas para Productos
 class ProductoBase(BaseModel):
     nombre: str
     descripcion: Optional[str] = None
-    precio: float
+    precio_costo: float  
+    precio_venta: float  
     stock: int
     stock_minimo: int = 10
     categoria: Optional[str] = None
@@ -17,14 +56,28 @@ class ProductoCreate(ProductoBase):
 
 class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
-    precio: Optional[float] = None
+    precio_costo: Optional[float] = None  # NUEVO
+    precio_venta: Optional[float] = None  # CAMBIADO
     stock: Optional[int] = None
     categoria: Optional[str] = None
+    codigo_barras: Optional[str] = None
 
 class Producto(ProductoBase):
     id: int
     activo: bool
     fecha_creacion: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Schema para búsqueda por código de barras
+class ProductoBusqueda(BaseModel):
+    id: int
+    nombre: str
+    precio_venta: float
+    stock: int
+    categoria: Optional[str]
+    codigo_barras: Optional[str]
     
     class Config:
         from_attributes = True

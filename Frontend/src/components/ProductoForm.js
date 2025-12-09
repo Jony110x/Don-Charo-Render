@@ -5,15 +5,26 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
     nombre: producto?.nombre || '',
     descripcion: producto?.descripcion || '',
-    precio: producto?.precio || '',
+    precio_costo: producto?.precio_costo || '',  // NUEVO
+    precio_venta: producto?.precio_venta || '',  // CAMBIADO
     stock: producto?.stock || '',
     stock_minimo: producto?.stock_minimo || 10,
     categoria: producto?.categoria || '',
     codigo_barras: producto?.codigo_barras || ''
   });
 
+  const margenGanancia = formData.precio_costo && formData.precio_venta
+    ? (((formData.precio_venta - formData.precio_costo) / formData.precio_costo) * 100).toFixed(2)
+    : 0;
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    if (parseFloat(formData.precio_venta) <= parseFloat(formData.precio_costo)) {
+      alert('El precio de venta debe ser mayor al precio de costo');
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -21,7 +32,7 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'precio' || name === 'stock' || name === 'stock_minimo' 
+      [name]: name === 'precio_costo' || name === 'precio_venta' || name === 'stock' || name === 'stock_minimo' 
         ? parseFloat(value) || 0 
         : value
     }));
@@ -45,7 +56,7 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
         padding: '2rem',
         borderRadius: '0.5rem',
         width: '90%',
-        maxWidth: '500px',
+        maxWidth: '600px',
         maxHeight: '90vh',
         overflow: 'auto'
       }}>
@@ -90,12 +101,12 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-                  Precio *
+                  Precio de Costo *
                 </label>
                 <input
                   type="number"
-                  name="precio"
-                  value={formData.precio}
+                  name="precio_costo"
+                  value={formData.precio_costo}
                   onChange={handleChange}
                   required
                   step="0.01"
@@ -104,6 +115,41 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                 />
               </div>
 
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                  Precio de Venta *
+                </label>
+                <input
+                  type="number"
+                  name="precio_venta"
+                  value={formData.precio_venta}
+                  onChange={handleChange}
+                  required
+                  step="0.01"
+                  min="0"
+                  className="input"
+                />
+              </div>
+            </div>
+
+            {/* Mostrar margen de ganancia */}
+            {formData.precio_costo > 0 && formData.precio_venta > 0 && (
+              <div style={{
+                backgroundColor: margenGanancia > 0 ? '#d1fae5' : '#fee2e2',
+                padding: '0.75rem',
+                borderRadius: '0.5rem',
+                border: `2px solid ${margenGanancia > 0 ? '#86efac' : '#fca5a5'}`
+              }}>
+                <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>
+                  Margen de Ganancia: <span style={{ fontSize: '1.125rem' }}>{margenGanancia}%</span>
+                </p>
+                <p style={{ fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                  Ganancia por unidad: ${(formData.precio_venta - formData.precio_costo).toFixed(2)}
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
                   Stock *
@@ -118,9 +164,7 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                   className="input"
                 />
               </div>
-            </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
                   Stock Mínimo
@@ -134,7 +178,9 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                   className="input"
                 />
               </div>
+            </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
                   Categoría
@@ -147,19 +193,20 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                   className="input"
                 />
               </div>
-            </div>
 
-            <div>
-              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-                Código de Barras
-              </label>
-              <input
-                type="text"
-                name="codigo_barras"
-                value={formData.codigo_barras}
-                onChange={handleChange}
-                className="input"
-              />
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+                  Código de Barras
+                </label>
+                <input
+                  type="text"
+                  name="codigo_barras"
+                  value={formData.codigo_barras}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="7891234567890"
+                />
+              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
