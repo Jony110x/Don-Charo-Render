@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, ShoppingCart, Package, Clock, RefreshCw } from 'lucide-react';
 import { getDashboard, getVentasPorPeriodo, getCategoriasVendidas, getProductosVendidos, getVentasPorHorario, getGanancias, getMetodosPago } from '../api/api';
+import { useToast  } from '../Toast';
 
 // Tooltip personalizado para mostrar valores correctamente
 const CustomTooltip = ({ active, payload, label }) => {
@@ -41,6 +42,7 @@ const Reportes = () => {
   const [datosGanancias, setDatosGanancias] = useState([]);
   const [datosMetodosPago, setDatosMetodosPago] = useState([]);
   const [dashboard, setDashboard] = useState(null);
+  const toast = useToast();
 
   useEffect(() => {
     cargarDatos();
@@ -73,7 +75,7 @@ const Reportes = () => {
       }
     } catch (error) {
       console.error('Error cargando reportes:', error);
-      alert('Error al cargar los datos de reportes');
+      toast.error('Error al cargar los datos de reportes')
     } finally {
       setLoading(false);
     }

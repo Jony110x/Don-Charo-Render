@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { DollarSign, Package, ShoppingCart, AlertTriangle } from 'lucide-react';
 import { getDashboard, getProductosStockBajo } from '../api/api';
+import { useToast  } from '../Toast';
 
 const Dashboard = () => {
+  const toast = useToast();
   const [stats, setStats] = useState({
     total_ventas: 0,
     cantidad_ventas: 0,
@@ -18,21 +20,30 @@ const Dashboard = () => {
   }, []);
 
   const cargarDatos = async () => {
-    try {
-      setLoading(true);
-      const [dashboardRes, stockBajoRes] = await Promise.all([
-        getDashboard(),
-        getProductosStockBajo()
-      ]);
-      setStats(dashboardRes.data);
-      setProductosStockBajo(stockBajoRes.data);
-    } catch (error) {
-      console.error('Error cargando dashboard:', error);
-      alert('Error al cargar datos del dashboard');
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const [dashboardRes, stockBajoRes] = await Promise.all([
+      getDashboard(),
+      getProductosStockBajo()
+    ]);
+    setStats(dashboardRes.data);
+    setProductosStockBajo(stockBajoRes.data);
+    
+    // Mostrar toast de warning si hay productos con stock bajo (solo un toast)
+    if (stockBajoRes.data.length > 0) {
+      const cantidadProductos = stockBajoRes.data.length;
+      const mensaje = cantidadProductos === 1 
+        ? '¡Atención! Hay 1 producto con stock bajo'
+        : `¡Atención! Hay ${cantidadProductos} productos con stock bajo`;
+      toast.warning(mensaje);
     }
-  };
+  } catch (error) {
+    console.error('Error cargando dashboard:', error);
+    toast.error('Error al cargar datos del dashboard');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return (

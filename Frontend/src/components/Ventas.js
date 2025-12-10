@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, ShoppingCart, Trash2, Scan, DollarSign, Banknote } from 'lucide-react';
 import { getProductos, createVenta, buscarPorCodigo, getCotizaciones } from '../api/api';
+import { useToast  } from '../Toast';
 
 // Componente memoizado con props mínimas
 const ProductCard = React.memo(({ producto, onAgregar, monedaSeleccionada, cotizaciones }) => {
@@ -127,6 +128,7 @@ const Ventas = () => {
   const [metodoPago, setMetodoPago] = useState('normal'); // 'normal' o 'efectivo'
   const [cotizaciones, setCotizaciones] = useState({ USD: 1, BRL: 1 });
   const codigoInputRef = useRef(null);
+  const toast = useToast();
 
   useEffect(() => {
     cargarProductos();
@@ -166,7 +168,7 @@ const Ventas = () => {
       setProductos(response.data.filter(p => p.stock > 0));
     } catch (error) {
       console.error('Error cargando productos:', error);
-      alert('Error al cargar productos');
+      toast.error('Error al cargar prodoctos')
     } finally {
       setLoading(false);
     }
@@ -218,7 +220,7 @@ const Ventas = () => {
       }
     } catch (error) {
       console.error('Error buscando producto:', error);
-      alert(error.response?.data?.detail || 'Producto no encontrado');
+      toast.error('Producto no encontrado')
       setCodigoBarras('');
       if (codigoInputRef.current) {
         codigoInputRef.current.focus();
@@ -246,7 +248,7 @@ const Ventas = () => {
       
       if (itemExistente) {
         if (itemExistente.cantidad >= producto.stock) {
-          alert('No hay suficiente stock');
+          toast.warning('No hay suficiente stock')
           return prevCarrito;
         }
         return prevCarrito.map(item =>
@@ -274,7 +276,7 @@ const Ventas = () => {
 
     const item = carrito.find(i => i.producto_id === producto_id);
     if (nuevaCantidad > item.stock_disponible) {
-      alert('No hay suficiente stock');
+      toast.warning('No hay suficiente stock')
       return;
     }
 
@@ -291,7 +293,7 @@ const Ventas = () => {
 
   const finalizarVenta = async () => {
     if (carrito.length === 0) {
-      alert('El carrito está vacío');
+      toast.warning('El carrito esta vacio')
       return;
     }
 
@@ -306,7 +308,7 @@ const Ventas = () => {
       };
 
       await createVenta(ventaData);
-      alert('Venta registrada exitosamente!');
+      toast.success('Venta registrada exitosamente!')
       setCarrito([]);
       cargarProductos();
       
@@ -315,7 +317,7 @@ const Ventas = () => {
       }
     } catch (error) {
       console.error('Error creando venta:', error);
-      alert(error.response?.data?.detail || 'Error al registrar la venta');
+      toast.error('Error al registrar la venta')
     }
   };
 

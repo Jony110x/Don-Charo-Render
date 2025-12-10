@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, RefreshCw, Search, Filter } from 'lucide-react';
 import { getProductos, createProducto, updateProducto, deleteProducto } from '../api/api';
 import ProductoForm from './ProductoForm';
+import { useToast  } from '../Toast';
 
 const Stock = () => {
   const [productos, setProductos] = useState([]);
@@ -9,6 +10,7 @@ const Stock = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [productoEdit, setProductoEdit] = useState(null);
+   const toast = useToast();
   
   // Estados de filtros
   const [busqueda, setBusqueda] = useState('');
@@ -34,7 +36,7 @@ const Stock = () => {
       setProductos(productosOrdenados);
     } catch (error) {
       console.error('Error cargando productos:', error);
-      alert('Error al cargar productos');
+      toast.error('Error al cargar productos');
     } finally {
       setLoading(false);
     }
@@ -74,25 +76,25 @@ const Stock = () => {
   const handleCrearProducto = async (data) => {
     try {
       await createProducto(data);
-      alert('Producto creado exitosamente');
+      toast.success('Producto creado exitosamente')
       setShowForm(false);
       cargarProductos();
     } catch (error) {
       console.error('Error creando producto:', error);
-      alert(error.response?.data?.detail || 'Error al crear producto');
+      toast.error('Error al crear producto')
     }
   };
 
   const handleActualizarProducto = async (data) => {
     try {
       await updateProducto(productoEdit.id, data);
-      alert('Producto actualizado exitosamente');
+      toast.success('Producto actualizado exitosamente')
       setShowForm(false);
       setProductoEdit(null);
       cargarProductos();
     } catch (error) {
       console.error('Error actualizando producto:', error);
-      alert(error.response?.data?.detail || 'Error al actualizar producto');
+      toast.error('Error al actualizar producto')
     }
   };
 
@@ -101,11 +103,11 @@ const Stock = () => {
     
     try {
       await deleteProducto(id);
-      alert('Producto eliminado exitosamente');
+      toast.success('Producto eliminado exitosamente')
       cargarProductos();
     } catch (error) {
       console.error('Error eliminando producto:', error);
-      alert('Error al eliminar producto');
+      toast.error('Error al eliminar producto')
     }
   };
 
