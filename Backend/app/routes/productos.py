@@ -143,3 +143,18 @@ def productos_stock_bajo(
         models.Producto.activo == True
     ).all()
     return productos
+
+@router.get("/stock/critico")
+def productos_stock_critico(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    """
+    Obtener productos con stock crítico (menos de 10 unidades)
+    """
+    productos = db.query(models.Producto).filter(
+        models.Producto.stock < 10,
+        models.Producto.activo == True
+    ).order_by(models.Producto.stock.asc()).all()
+    
+    return productos

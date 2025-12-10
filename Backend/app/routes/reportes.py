@@ -271,3 +271,66 @@ def metodos_pago(
         "cantidad": m.cantidad,
         "total": float(m.total)
     } for m in metodos]
+
+@router.get("/dashboard-hoy")
+def dashboard_hoy(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_user)
+):
+    """
+    Dashboard con datos SOLO del día de hoy
+    """
+    hoy = datetime.now().date()
+    
+    # Ventas de hoy
+    ventas_hoy = db.query(func.sum(models.Venta.total)).filter(
+        func.date(models.Venta.fecha) == hoy
+    ).scalar() or 0
+    
+    # Cantidad de transacciones hoy
+    cantidad_ventas_hoy = db.query(func.count(models.Venta.id)).filter(
+        func.date(models.Venta.fecha) == hoy
+    ).scalar()
+    
+    # Productos vendidos hoy (unidades)
+    productos_vendidos_hoy = db.query(func.sum(models.ItemVenta.cantidad)).join(
+        models.Venta
+    ).filter(
+        func.date(models.Venta.fecha) == hoy
+    ).scalar() or 0
+    
+    # Ganancias de hoy
+    ganancia_hoy = db.query(
+        func.sum(
+            (models.Producto.precio_venta - models.Producto.precio_costo) * 
+            models.ItemVenta.cantidad
+        )
+    ).join(
+        models.ItemVenta.producto
+    ).join(
+        models.Venta
+    ).filter(
+        func.date(models.Venta.fecha) == hoy
+    ).scalar() or 0
+    
+    # Stock bajo (menos del mínimo pero más de 10)
+    stock_bajo = db.query(func.count(models.Producto.id)).filter(
+        models.Producto.stock < models.Producto.stock_minimo,
+        models.Producto.stock >= 10,
+        models.Producto.activo == True
+    ).scalar()
+    
+    # Stock crítico (menos de 10)
+    stock_critico = db.query(func.count(models.Producto.id)).filter(
+        models.Producto.stock < 10,
+        models.Producto.activo == True
+    ).scalar()
+    
+    return {
+        "ventas_hoy": float(ventas_hoy),
+        "cantidad_ventas_hoy": cantidad_ventas_hoy,
+        "productos_vendidos_hoy": productos_vendidos_hoy,
+        "ganancia_hoy": float(ganancia_hoy),
+        "productos_stock_bajo": stock_bajo,
+        "productos_stock_critico": stock_critico
+    }

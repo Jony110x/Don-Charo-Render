@@ -35,6 +35,7 @@ export const createProducto = (data) => api.post('/productos/', data);
 export const updateProducto = (id, data) => api.put(`/productos/${id}`, data);
 export const deleteProducto = (id) => api.delete(`/productos/${id}`);
 export const getProductosStockBajo = () => api.get('/productos/stock/bajo');
+export const getProductosStockCritico = () => api.get('/productos/stock/critico');
 export const buscarPorCodigo = (codigo) => api.get(`/productos/buscar-codigo?codigo=${codigo}`);
 
 // Ventas
@@ -43,7 +44,8 @@ export const getVenta = (id) => api.get(`/ventas/${id}`);
 export const createVenta = (data) => api.post('/ventas/', data);
 
 // Reportes
-export const getDashboard = () => api.get('/reportes/dashboard');
+export const getDashboard = () => api.get('/reportes/dashboard'); // Endpoint original (para otros usos)
+export const getDashboardHoy = () => api.get('/reportes/dashboard-hoy'); // NUEVO: Solo datos de hoy
 export const getVentasMensuales = () => api.get('/reportes/ventas/mensuales');
 export const getProductosRentabilidad = () => api.get('/reportes/productos/rentabilidad');
 
@@ -143,7 +145,3 @@ export const getGanancias = (periodo) => api.get(`/reportes/ganancias?periodo=${
 export const getMetodosPago = () => api.get('/reportes/metodos-pago');
 
 export default api;
-
-
-
-
