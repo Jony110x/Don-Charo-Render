@@ -23,6 +23,23 @@ api.interceptors.request.use(
   }
 );
 
+// Interceptor para manejar errores de respuesta
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token inválido o expirado
+      console.error('Sesión expirada o no autorizado');
+      localStorage.removeItem('token');
+      // Redirigir al login
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth
 export const login = (credentials) => api.post('/auth/login', credentials);
 export const register = (userData) => api.post('/auth/register', userData);
@@ -40,13 +57,31 @@ export const getProductos = (params = {}) => {
   
   return api.get(`/productos/?${queryParams.toString()}`);
 };
-export const getCategorias = () => api.get('/productos/categorias');
+export const getCategorias = (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.skip !== undefined) queryParams.append('skip', params.skip);
+  if (params.limit !== undefined) queryParams.append('limit', params.limit);
+  if (params.busqueda) queryParams.append('busqueda', params.busqueda);
+  return api.get(`/productos/categorias?${queryParams.toString()}`);
+};
 export const getProducto = (id) => api.get(`/productos/${id}`);
 export const createProducto = (data) => api.post('/productos/', data);
 export const updateProducto = (id, data) => api.put(`/productos/${id}`, data);
 export const deleteProducto = (id) => api.delete(`/productos/${id}`);
-export const getProductosStockBajo = () => api.get('/productos/stock/bajo');
-export const getProductosStockCritico = () => api.get('/productos/stock/critico');
+export const getProductosStockBajo = (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.skip !== undefined) queryParams.append('skip', params.skip);
+  if (params.limit !== undefined) queryParams.append('limit', params.limit);
+  return api.get(`/productos/stock/bajo?${queryParams.toString()}`);
+};
+
+export const getProductosStockCritico = (params = {}) => {
+  const queryParams = new URLSearchParams();
+  if (params.skip !== undefined) queryParams.append('skip', params.skip);
+  if (params.limit !== undefined) queryParams.append('limit', params.limit);
+  return api.get(`/productos/stock/critico?${queryParams.toString()}`);
+};
+
 export const buscarPorCodigo = (codigo) => api.get(`/productos/buscar-codigo?codigo=${codigo}`);
 
 // Ventas

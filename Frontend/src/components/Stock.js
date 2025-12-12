@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Edit2, Trash2, RefreshCw, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, RefreshCw, Search, ChevronDown, ChevronUp, X, AlertTriangle } from 'lucide-react';
 import { getProductos, getCategorias, createProducto, updateProducto, deleteProducto } from '../api/api';
 import ProductoForm from './ProductoForm';
 import { useToast } from '../Toast';
@@ -11,6 +11,8 @@ const Stock = () => {
   const [showForm, setShowForm] = useState(false);
   const [productoEdit, setProductoEdit] = useState(null);
   const [filtrosColapsados, setFiltrosColapsados] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productoAEliminar, setProductoAEliminar] = useState(null);
   const toast = useToast();
   
   // Estados de paginación
@@ -34,6 +36,18 @@ const Stock = () => {
   // Ref para detectar scroll
   const observerRef = useRef();
   const loadMoreRef = useRef(null);
+
+  // Anchos fijos de columnas
+  const COLUMN_WIDTHS = {
+    producto: '25%',
+    categoria: '12%',
+    precioCosto: '10%',
+    precioVenta: '10%',
+    margen: '10%',
+    stock: '8%',
+    estado: '10%',
+    acciones: '15%'
+  };
 
   // Cargar categorías al montar
   useEffect(() => {
@@ -194,12 +208,19 @@ const Stock = () => {
     }
   };
 
-  const handleEliminarProducto = async (id) => {
-    if (!window.confirm('¿Estás seguro de eliminar este producto?')) return;
+  const confirmarEliminarProducto = (producto) => {
+    setProductoAEliminar(producto);
+    setShowDeleteModal(true);
+  };
+
+  const handleEliminarProducto = async () => {
+    if (!productoAEliminar) return;
     
     try {
-      await deleteProducto(id);
+      await deleteProducto(productoAEliminar.id);
       toast.success('Producto eliminado exitosamente');
+      setShowDeleteModal(false);
+      setProductoAEliminar(null);
       // Recargar desde cero
       setProductos([]);
       setSkip(0);
@@ -234,7 +255,7 @@ const Stock = () => {
   // Componente Skeleton para filas de la tabla
   const SkeletonRow = () => (
     <tr style={{ borderTop: '1px solid #e5e7eb' }}>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.producto }}>
         <div style={{ 
           height: '1rem', 
           backgroundColor: '#e5e7eb', 
@@ -251,7 +272,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.categoria }}>
         <div style={{ 
           height: '1rem', 
           backgroundColor: '#e5e7eb', 
@@ -260,7 +281,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.precioCosto }}>
         <div style={{ 
           height: '1rem', 
           backgroundColor: '#e5e7eb', 
@@ -269,7 +290,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.precioVenta }}>
         <div style={{ 
           height: '1rem', 
           backgroundColor: '#e5e7eb', 
@@ -278,7 +299,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.margen }}>
         <div style={{ 
           height: '1.5rem', 
           backgroundColor: '#e5e7eb', 
@@ -287,7 +308,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.stock }}>
         <div style={{ 
           height: '1rem', 
           backgroundColor: '#e5e7eb', 
@@ -296,7 +317,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.estado }}>
         <div style={{ 
           height: '1.5rem', 
           backgroundColor: '#e5e7eb', 
@@ -305,7 +326,7 @@ const Stock = () => {
           animation: 'pulse 1.5s ease-in-out infinite'
         }} />
       </td>
-      <td style={{ padding: '0.75rem' }}>
+      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.acciones }}>
         <div style={{ display: 'flex', gap: '0.375rem' }}>
           <div style={{ 
             width: '28px',
@@ -343,6 +364,16 @@ const Stock = () => {
             }
             50% {
               opacity: 0.5;
+            }
+          }
+          @keyframes slideIn {
+            from {
+              opacity: 0;
+              transform: translateY(-20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
             }
           }
         `}
@@ -467,7 +498,7 @@ const Stock = () => {
                         key={idx}
                         onClick={() => seleccionarCategoriaFiltro(cat)}
                         style={{
-                          padding: '0.75rem 1rem',
+                          padding: '0.35rem 1rem',
                           cursor: 'pointer',
                           borderBottom: idx < categoriasFiltradas.length - 1 ? '1px solid #f3f4f6' : 'none',
                           transition: 'background-color 0.15s',
@@ -573,7 +604,7 @@ const Stock = () => {
             </p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px', tableLayout: 'fixed' }}>
             <thead style={{ 
               backgroundColor: '#f3f4f6',
               position: 'sticky',
@@ -581,14 +612,14 @@ const Stock = () => {
               zIndex: 10
             }}>
               <tr>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Producto</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Categoría</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>P. Costo</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>P. Venta</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Margen</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Stock</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Estado</th>
-                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem' }}>Acciones</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.producto }}>Producto</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.categoria }}>Categoría</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.precioCosto }}>P. Costo</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.precioVenta }}>P. Venta</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.margen }}>Margen</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.stock }}>Stock</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.estado }}>Estado</th>
+                <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.acciones }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -615,7 +646,7 @@ const Stock = () => {
                       ref={isLast ? lastProductRef : null}
                       style={{ borderTop: '1px solid #e5e7eb' }}
                     >
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.producto }}>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{producto.nombre}</div>
                           {producto.codigo_barras && (
@@ -625,16 +656,16 @@ const Stock = () => {
                           )}
                         </div>
                       </td>
-                      <td style={{ padding: '0.75rem', textTransform: 'capitalize', fontSize: '0.875rem' }}>
+                      <td style={{ padding: '0.75rem', textTransform: 'capitalize', fontSize: '0.875rem', width: COLUMN_WIDTHS.categoria }}>
                         {producto.categoria || 'Sin categoría'}
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#dc2626', fontWeight: 600, fontSize: '0.875rem' }}>
+                      <td style={{ padding: '0.75rem', color: '#dc2626', fontWeight: 600, fontSize: '0.875rem', width: COLUMN_WIDTHS.precioCosto }}>
                         ${producto.precio_costo.toFixed(2)}
                       </td>
-                      <td style={{ padding: '0.75rem', color: '#059669', fontWeight: 'bold', fontSize: '0.875rem' }}>
+                      <td style={{ padding: '0.75rem', color: '#059669', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.precioVenta }}>
                         ${producto.precio_venta.toFixed(2)}
                       </td>
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.margen }}>
                         <span style={{
                           backgroundColor: margen > 30 ? '#d1fae5' : margen > 15 ? '#fef3c7' : '#fee2e2',
                           color: margen > 30 ? '#065f46' : margen > 15 ? '#92400e' : '#991b1b',
@@ -646,8 +677,8 @@ const Stock = () => {
                           {margen}%
                         </span>
                       </td>
-                      <td style={{ padding: '0.75rem', fontWeight: 'bold', fontSize: '0.875rem' }}>{producto.stock}</td>
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.75rem', fontWeight: 'bold', fontSize: '0.875rem', width: COLUMN_WIDTHS.stock }}>{producto.stock}</td>
+                      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.estado }}>
                         <span style={{
                           backgroundColor: estado.color,
                           color: estado.textColor,
@@ -659,7 +690,7 @@ const Stock = () => {
                           {estado.text}
                         </span>
                       </td>
-                      <td style={{ padding: '0.75rem' }}>
+                      <td style={{ padding: '0.75rem', width: COLUMN_WIDTHS.acciones }}>
                         <div style={{ display: 'flex', gap: '0.375rem' }}>
                           <button
                             onClick={() => {
@@ -679,7 +710,7 @@ const Stock = () => {
                             <Edit2 size={14} />
                           </button>
                           <button
-                            onClick={() => handleEliminarProducto(producto.id)}
+                            onClick={() => confirmarEliminarProducto(producto)}
                             style={{
                               padding: '0.375rem',
                               backgroundColor: '#ef4444',
@@ -725,6 +756,111 @@ const Stock = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      {showDeleteModal && productoAEliminar && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            maxWidth: '450px',
+            width: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            animation: 'slideIn 0.2s ease-out'
+          }}>
+            
+            {/* Header del modal */}
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+              <div style={{
+                backgroundColor: '#fee2e2',
+                padding: '0.75rem',
+                borderRadius: '50%',
+                marginRight: '1rem'
+              }}>
+                <AlertTriangle size={24} style={{ color: '#dc2626' }} />
+              </div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0, color: '#111827' }}>
+                Eliminar Producto
+              </h3>
+            </div>
+
+            {/* Contenido */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ color: '#6b7280', marginBottom: '1rem', lineHeight: '1.5' }}>
+                ¿Estás seguro de que deseas eliminar este producto? Esta acción no se puede deshacer.
+              </p>
+              <div style={{
+                backgroundColor: '#f9fafb',
+                padding: '1rem',
+                borderRadius: '0.5rem',
+                border: '1px solid #e5e7eb'
+              }}>
+                <p style={{ fontWeight: 600, fontSize: '1rem', marginBottom: '0.25rem', color: '#111827' }}>
+                  {productoAEliminar.nombre}
+                </p>
+                <p style={{ fontSize: '0.875rem', color: '#6b7280', textTransform: 'capitalize' }}>
+                  {productoAEliminar.categoria || 'Sin categoría'} • Stock: {productoAEliminar.stock}
+                </p>
+              </div>
+            </div>
+
+            {/* Botones */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setProductoAEliminar(null);
+                }}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEliminarProducto}
+                style={{
+                  padding: '0.625rem 1.25rem',
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.875rem',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <ProductoForm

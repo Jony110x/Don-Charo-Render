@@ -204,28 +204,77 @@ def eliminar_producto(
     db.commit()
     return {"message": "Producto eliminado correctamente"}
 
-@router.get("/stock/bajo", response_model=List[schemas.Producto])
+
+@router.get("/stock/bajo")
 def productos_stock_bajo(
+    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
+    limit: int = Query(20, ge=1, le=50, description="Número de registros a retornar"),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
-    productos = db.query(models.Producto).filter(
+    """
+    Obtener productos con stock bajo (menos del stock mínimo) con paginación
+    """
+    print(f"📦 Endpoint stock/bajo llamado - skip: {skip}, limit: {limit}")
+    
+    query = db.query(models.Producto).filter(
         models.Producto.stock < models.Producto.stock_minimo,
+        models.Producto.stock >= 10,  # Bajo pero no crítico
         models.Producto.activo == True
-    ).all()
-    return productos
+    ).order_by(models.Producto.stock.asc())
+    
+    total = query.count()
+    print(f"📊 Total productos con stock bajo: {total}")
+    
+    productos = query.offset(skip).limit(limit).all()
+    print(f"✅ Productos obtenidos: {len(productos)}")
+    
+    resultado = {
+        "productos": productos,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "has_more": (skip + limit) < total
+    }
+    
+    print(f"📤 Enviando respuesta: total={total}, productos={len(productos)}, has_more={resultado['has_more']}")
+    
+    return resultado
 
 @router.get("/stock/critico")
 def productos_stock_critico(
+    skip: int = Query(0, ge=0, description="Número de registros a saltar"),
+    limit: int = Query(20, ge=1, le=50, description="Número de registros a retornar"),
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_user)
 ):
     """
-    Obtener productos con stock crítico (menos de 10 unidades)
+    Obtener productos con stock crítico (menos de 10 unidades) con paginación
     """
-    productos = db.query(models.Producto).filter(
+    print(f"🚨 Endpoint stock/critico llamado - skip: {skip}, limit: {limit}")
+    
+    query = db.query(models.Producto).filter(
         models.Producto.stock < 10,
         models.Producto.activo == True
-    ).order_by(models.Producto.stock.asc()).all()
+    ).order_by(models.Producto.stock.asc())
     
-    return productos
+    total = query.count()
+    print(f"📊 Total productos con stock crítico: {total}")
+    
+    productos = query.offset(skip).limit(limit).all()
+    print(f"✅ Productos obtenidos: {len(productos)}")
+    
+    if len(productos) > 0:
+        print(f"🔍 Primer producto: {productos[0].nombre} - Stock: {productos[0].stock}")
+    
+    resultado = {
+        "productos": productos,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "has_more": (skip + limit) < total
+    }
+    
+    print(f"📤 Enviando respuesta: total={total}, productos={len(productos)}, has_more={resultado['has_more']}")
+    
+    return resultado

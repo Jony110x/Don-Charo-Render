@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { X } from 'lucide-react';
-import { getProductos } from '../api/api';
+import { getCategorias } from '../api/api';
+import { useToast } from '../Toast';
 
 const ProductoForm = ({ producto, onClose, onSubmit }) => {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     nombre: producto?.nombre || '',
     descripcion: producto?.descripcion || '',
@@ -15,72 +17,216 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
   });
 
   const [categoriaInput, setCategoriaInput] = useState(producto?.categoria || '');
-  const [sugerenciasCategorias, setSugerenciasCategorias] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [categoriasCache, setCategoriasCache] = useState([]); // Cache para búsqueda local
+  const [sugerenciasLocales, setSugerenciasLocales] = useState([]); // Sugerencias filtradas localmente
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
-  const [todasLasCategorias, setTodasLasCategorias] = useState([]);
+  
+  // Estados de paginación para categorías
+  const [skipCategorias, setSkipCategorias] = useState(0);
+  const [hasMoreCategorias, setHasMoreCategorias] = useState(true);
+  const [totalCategorias, setTotalCategorias] = useState(0);
+  const [loadingCategorias, setLoadingCategorias] = useState(false);
+  const LIMIT_CATEGORIAS = 20;
+  
   const inputCategoriaRef = useRef(null);
   const sugerenciasRef = useRef(null);
   const contenedorScrollRef = useRef(null);
+  const observerCategoriasRef = useRef(null);
+  const timerBusquedaRef = useRef(null);
+  const scrollAjustadoRef = useRef(false); // Para controlar si ya se ajustó el scroll
 
+  // Limpiar timer al desmontar
   useEffect(() => {
-    cargarCategorias();
+    return () => {
+      if (timerBusquedaRef.current) {
+        clearTimeout(timerBusquedaRef.current);
+      }
+    };
   }, []);
 
-  // Cargar categorías existentes de la base de datos
-  const cargarCategorias = async () => {
-    try {
-      const response = await getProductos();
-      const categoriasUnicas = [...new Set(
-        response.data
-          .map(p => p.categoria)
-          .filter(c => c && c.trim() !== '')
-      )].sort();
-      setTodasLasCategorias(categoriasUnicas);
-    } catch (error) {
-      console.error('Error cargando categorías:', error);
-    }
-  };
-
-  // Manejar cambio en input de categoría con búsqueda
-  const handleCategoriaChange = (e) => {
-    const valor = e.target.value;
-    setCategoriaInput(valor);
-    setFormData(prev => ({ ...prev, categoria: valor }));
+  // Ajustar scroll del modal cuando aparecen sugerencias
+  const ajustarScrollModal = useCallback(() => {
+    if (!inputCategoriaRef.current || !contenedorScrollRef.current) return;
     
-    if (valor.trim() === '') {
-      setSugerenciasCategorias([]);
-      setMostrarSugerencias(false);
-      return;
-    }
-
-    // Filtrar categorías que coincidan
-    const sugerencias = todasLasCategorias.filter(cat =>
-      cat.toLowerCase().includes(valor.toLowerCase())
-    );
-
-    setSugerenciasCategorias(sugerencias);
-    setMostrarSugerencias(true);
-
-    // Hacer scroll automático para mostrar las sugerencias
-    setTimeout(() => {
-      if (inputCategoriaRef.current && contenedorScrollRef.current) {
+    // Esperar a que el dropdown se renderice completamente
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (!sugerenciasRef.current) return;
+        
         const inputRect = inputCategoriaRef.current.getBoundingClientRect();
         const contenedorRect = contenedorScrollRef.current.getBoundingClientRect();
-        const dropdownHeight = 200; // Altura máxima del dropdown
+        const sugerenciasRect = sugerenciasRef.current.getBoundingClientRect();
         
-        // Calcular si el dropdown quedaría fuera de vista
+        // Calcular el espacio disponible debajo del input
         const espacioInferior = contenedorRect.bottom - inputRect.bottom;
+        const alturaDropdown = Math.min(sugerenciasRect.height, 200);
         
-        if (espacioInferior < dropdownHeight + 20) {
-          // Hacer scroll para que el input y el dropdown sean visibles
-          const scrollAmount = inputRect.top - contenedorRect.top + contenedorScrollRef.current.scrollTop - 50;
+        // Si el dropdown no cabe, hacer scroll para mostrarlo completo
+        if (espacioInferior < alturaDropdown + 20) {
+          const scrollAmount = inputRect.top - contenedorRect.top + 
+                              contenedorScrollRef.current.scrollTop - 20;
+          
           contenedorScrollRef.current.scrollTo({
             top: scrollAmount,
             behavior: 'smooth'
           });
         }
+      }, 100); // Delay más largo para asegurar que todo se renderizó
+    });
+  }, []);
+
+  // Ajustar scroll cuando aparecen o cambian las sugerencias
+  useEffect(() => {
+    if (mostrarSugerencias && sugerenciasLocales.length > 0 && !scrollAjustadoRef.current) {
+      ajustarScrollModal();
+      scrollAjustadoRef.current = true;
+    }
+  }, [mostrarSugerencias, sugerenciasLocales, ajustarScrollModal]);
+
+  // Cargar todas las categorías al inicio para búsqueda local rápida
+  useEffect(() => {
+    const cargarCategoriasIniciales = async () => {
+      try {
+        // Cargar 100 categorías para tener un buen cache local
+        const response = await getCategorias({ skip: 0, limit: 100 });
+        
+        let categoriasIniciales = [];
+        if (Array.isArray(response.data)) {
+          categoriasIniciales = response.data;
+        } else if (response.data && response.data.categorias) {
+          categoriasIniciales = response.data.categorias;
+        }
+        
+        console.log('✅ Cache de categorías cargado:', categoriasIniciales.length);
+        setCategoriasCache(categoriasIniciales);
+      } catch (error) {
+        console.error('Error cargando categorías iniciales:', error);
       }
-    }, 100);
+    };
+    
+    cargarCategoriasIniciales();
+  }, []);
+
+  // Cargar categorías con paginación
+  const cargarCategorias = async (skipValue = 0, reset = false) => {
+    if (!hasMoreCategorias && !reset) return;
+    
+    // Evitar múltiples cargas simultáneas
+    if (loadingCategorias) return;
+    
+    try {
+      setLoadingCategorias(true);
+      
+      const params = {
+        skip: skipValue,
+        limit: LIMIT_CATEGORIAS,
+        ...(categoriaInput && { busqueda: categoriaInput })
+      };
+
+      const response = await getCategorias(params);
+      
+      // Manejar respuesta del backend
+      let nuevasCategorias, total, has_more;
+      
+      if (Array.isArray(response.data)) {
+        nuevasCategorias = response.data;
+        total = response.data.length;
+        has_more = false;
+      } else if (response.data && response.data.categorias) {
+        nuevasCategorias = response.data.categorias;
+        total = response.data.total;
+        has_more = response.data.has_more;
+      } else {
+        console.error('❌ Formato de respuesta inesperado:', response.data);
+        nuevasCategorias = [];
+        total = 0;
+        has_more = false;
+      }
+
+      if (reset) {
+        setCategorias(nuevasCategorias);
+        // Solo combinar si hay búsqueda activa y resultados del backend
+        if (categoriaInput && nuevasCategorias.length > 0) {
+          setSugerenciasLocales(prev => {
+            // Combinar resultados locales con los del backend (sin duplicados)
+            const combined = [...prev, ...nuevasCategorias];
+            return [...new Set(combined)];
+          });
+        }
+        
+        // Actualizar cache si no hay búsqueda
+        if (!categoriaInput) {
+          setCategoriasCache(prev => {
+            const merged = [...prev, ...nuevasCategorias];
+            return [...new Set(merged)];
+          });
+        }
+      } else {
+        setCategorias(prev => [...prev, ...nuevasCategorias]);
+        // Agregar a sugerencias locales si hay búsqueda activa
+        if (categoriaInput) {
+          setSugerenciasLocales(prev => {
+            const combined = [...prev, ...nuevasCategorias];
+            return [...new Set(combined)];
+          });
+        }
+      }
+      
+      setTotalCategorias(total);
+      setHasMoreCategorias(has_more);
+      setSkipCategorias(skipValue + LIMIT_CATEGORIAS);
+
+    } catch (error) {
+      console.error('❌ Error cargando categorías:', error);
+    } finally {
+      setLoadingCategorias(false);
+    }
+  };
+
+  // Intersection Observer para scroll infinito de categorías
+  const lastCategoriaRef = useCallback(node => {
+    if (loadingCategorias) return;
+    if (observerCategoriasRef.current) observerCategoriasRef.current.disconnect();
+    
+    observerCategoriasRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreCategorias) {
+        cargarCategorias(skipCategorias);
+      }
+    });
+    
+    if (node) observerCategoriasRef.current.observe(node);
+  }, [loadingCategorias, hasMoreCategorias, skipCategorias]);
+
+  // Manejar cambio en input de categoría con búsqueda LOCAL SOLAMENTE
+  const handleCategoriaChange = (e) => {
+    const valor = e.target.value;
+    setCategoriaInput(valor);
+    setFormData(prev => ({ ...prev, categoria: valor }));
+    
+    // Limpiar timer anterior
+    if (timerBusquedaRef.current) {
+      clearTimeout(timerBusquedaRef.current);
+    }
+    
+    // Si está vacío, ocultar sugerencias
+    if (valor.trim() === '') {
+      setSugerenciasLocales([]);
+      setMostrarSugerencias(false);
+      scrollAjustadoRef.current = false;
+      return;
+    }
+    
+    // SOLO filtrado local INSTANTÁNEO (sin llamar al backend)
+    const valorLower = valor.toLowerCase();
+    const sugerenciasFiltradas = categoriasCache.filter(cat =>
+      cat.toLowerCase().includes(valorLower)
+    );
+    
+    setSugerenciasLocales(sugerenciasFiltradas);
+    setMostrarSugerencias(true);
+    scrollAjustadoRef.current = false; // Permitir ajuste de scroll para esta búsqueda
+    
   };
 
   // Seleccionar categoría de sugerencias
@@ -88,12 +234,14 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
     setCategoriaInput(categoria);
     setFormData(prev => ({ ...prev, categoria }));
     setMostrarSugerencias(false);
+    scrollAjustadoRef.current = false; // Resetear para la próxima vez
   };
 
   // Crear nueva categoría
   const crearNuevaCategoria = () => {
     setFormData(prev => ({ ...prev, categoria: categoriaInput }));
     setMostrarSugerencias(false);
+    scrollAjustadoRef.current = false; // Resetear para la próxima vez
   };
 
   // Click fuera de sugerencias
@@ -122,12 +270,12 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
     
     // Validar categoría obligatoria
     if (!formData.categoria || formData.categoria.trim() === '') {
-      alert('La categoría es obligatoria');
+      toast.warning('La categoría es obligatoria');
       return;
     }
     
     if (parseFloat(formData.precio_venta) <= parseFloat(formData.precio_costo)) {
-      alert('El precio de venta debe ser mayor al precio de costo');
+      toast.warning('El precio de venta debe ser mayor al precio de costo');
       return;
     }
     
@@ -318,13 +466,30 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                     type="text"
                     value={categoriaInput}
                     onChange={handleCategoriaChange}
-                    onFocus={() => categoriaInput && setMostrarSugerencias(true)}
+                    onFocus={() => {
+                      const valor = categoriaInput.trim();
+                      if (valor !== '') {
+                        // Filtrar localmente
+                        const valorLower = valor.toLowerCase();
+                        const sugerenciasFiltradas = categoriasCache.filter(cat =>
+                          cat.toLowerCase().includes(valorLower)
+                        );
+                        setSugerenciasLocales(sugerenciasFiltradas);
+                        setMostrarSugerencias(true);
+                        scrollAjustadoRef.current = false; // Permitir ajuste
+                        
+                        // Cargar desde backend si no hay suficientes resultados locales
+                        if (sugerenciasFiltradas.length < 5 && categorias.length === 0) {
+                          cargarCategorias(0, true);
+                        }
+                      }
+                    }}
                     required
                     className="input"
                     autoComplete="off"
                   />
                   
-                  {/* Dropdown de sugerencias */}
+                  {/* Dropdown de sugerencias con infinite scroll */}
                   {mostrarSugerencias && (
                     <div
                       ref={sugerenciasRef}
@@ -337,29 +502,75 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                         border: '1px solid #e5e7eb',
                         borderRadius: '0.375rem',
                         marginTop: '0.25rem',
-                        maxHeight: '96px',
+                        maxHeight: '100px',
                         overflowY: 'auto',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                         zIndex: 1000
                       }}
                     >
-                      {sugerenciasCategorias.length > 0 ? (
-                        sugerenciasCategorias.map((cat, idx) => (
+                      {sugerenciasLocales.length > 0 ? (
+                        <>
+                          {sugerenciasLocales.map((cat, idx) => {
+                            const isLast = idx === sugerenciasLocales.length - 1;
+                            return (
+                              <div
+                                key={idx}
+                                ref={isLast ? lastCategoriaRef : null}
+                                onClick={() => seleccionarCategoria(cat)}
+                                style={{
+                                  padding: '0.5rem 0.75rem',
+                                  cursor: 'pointer',
+                                  borderBottom: idx < sugerenciasLocales.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                  transition: 'background-color 0.15s',
+                                  fontSize: '0.875rem'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                              >
+                                {cat}
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Indicador de carga */}
+                          {loadingCategorias && (
+                            <div style={{ 
+                              padding: '0.5rem 0.75rem', 
+                              textAlign: 'center',
+                              color: '#6b7280',
+                              fontSize: '0.8125rem'
+                            }}>
+                              Buscando más categorías...
+                            </div>
+                          )}
+                          
+                          {/* Botón para agregar nueva categoría */}
                           <div
-                            key={idx}
-                            onClick={() => seleccionarCategoria(cat)}
+                            onClick={crearNuevaCategoria}
                             style={{
-                              padding: '0.75rem 1rem',
+                              padding: '0.5rem 0.75rem',
                               cursor: 'pointer',
-                              borderBottom: idx < sugerenciasCategorias.length - 1 ? '1px solid #f3f4f6' : 'none',
-                              transition: 'background-color 0.15s'
+                              color: '#3b82f6',
+                              fontWeight: 600,
+                              transition: 'background-color 0.15s',
+                              borderTop: '2px solid #e5e7eb',
+                              fontSize: '0.875rem'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                           >
-                            {cat}
+                            + Agregar "{categoriaInput}"
                           </div>
-                        ))
+                        </>
+                      ) : loadingCategorias ? (
+                        <div style={{ 
+                          padding: '0.75rem 1rem', 
+                          color: '#6b7280',
+                          textAlign: 'center',
+                          fontSize: '0.875rem'
+                        }}>
+                          Buscando categorías...
+                        </div>
                       ) : (
                         <div
                           onClick={crearNuevaCategoria}
@@ -368,7 +579,8 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
                             cursor: 'pointer',
                             color: '#3b82f6',
                             fontWeight: 600,
-                            transition: 'background-color 0.15s'
+                            transition: 'background-color 0.15s',
+                            fontSize: '0.875rem'
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
@@ -382,13 +594,14 @@ const ProductoForm = ({ producto, onClose, onSubmit }) => {
 
                 <div>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-                    Código de Barras
+                    Código de Barras <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
                     type="text"
                     name="codigo_barras"
                     value={formData.codigo_barras}
                     onChange={handleChange}
+                    required
                     className="input"
                     placeholder="7891234567890"
                   />
