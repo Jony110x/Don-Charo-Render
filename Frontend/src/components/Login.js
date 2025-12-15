@@ -208,6 +208,9 @@ const Login = ({ onLoginSuccess }) => {
             Credenciales de prueba:
           </p>
           <p style={{ color: '#6b7280', marginBottom: '0.25rem' }}>
+            SuperAdmin: <strong>pepe</strong> / <strong>1234</strong>
+          </p>
+          <p style={{ color: '#6b7280', marginBottom: '0.25rem' }}>
             Admin: <strong>admin</strong> / <strong>admin123</strong>
           </p>
           <p style={{ color: '#6b7280' }}>

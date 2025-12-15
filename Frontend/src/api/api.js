@@ -95,6 +95,36 @@ export const getDashboardHoy = () => api.get('/reportes/dashboard-hoy');
 export const getVentasMensuales = () => api.get('/reportes/ventas/mensuales');
 export const getProductosRentabilidad = () => api.get('/reportes/productos/rentabilidad');
 
+// Perfil de Usuario
+export const getUserProfile = () => {
+  return api.get('/user/profile');
+};
+
+export const updateUserProfile = (data) => {
+  return api.put('/user/profile', data);
+};
+
+// Administración de Usuarios (Solo SUPERADMIN)
+export const getAllUsers = (params) => {
+  return api.get('/users/', { params });
+};
+
+export const getUserById = (id) => {
+  return api.get(`/users/${id}`);
+};
+
+export const createUser = (data) => {
+  return api.post('/users/', data);
+};
+
+export const updateUser = (id, data) => {
+  return api.put(`/users/${id}`, data);
+};
+
+export const deleteUser = (id) => {
+  return api.delete(`/users/${id}`);
+};
+
 // Cotizaciones desde APIs oficiales con cache de 30 minutos
 export const getCotizaciones = async () => {
   const CACHE_KEY = 'cotizaciones_oficial';
@@ -178,7 +208,7 @@ export const getVentasPorPeriodo = (periodo) => api.get(`/reportes/ventas-por-pe
 export const getCategoriasVendidas = (limite = 10) => api.get(`/reportes/categorias-mas-vendidas?limite=${limite}`);
 export const getProductosVendidos = (limite = 10) => api.get(`/reportes/productos-mas-vendidos?limite=${limite}`);
 export const getVentasPorHorario = () => api.get('/reportes/ventas-por-horario');
-export const getVentasPorHorarioFecha = (fecha) => api.get(`/reportes/ventas-por-horario?fecha=${fecha}`);
+export const getVentasPorHorarioFecha = (fecha) => api.get(`/reportes/ventas-por-horario-fecha?fecha=${fecha}`);
 export const getGanancias = (periodo) => api.get(`/reportes/ganancias?periodo=${periodo}`);
 export const getMetodosPago = () => api.get('/reportes/metodos-pago');
 

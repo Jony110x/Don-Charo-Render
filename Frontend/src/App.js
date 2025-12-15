@@ -8,12 +8,15 @@ import {
   User as UserIcon,
   Smartphone,
   FileText,
+  Users as UsersIcon,
 } from "lucide-react";
 import Dashboard from "./components/Dashboard";
 import Ventas from "./components/Ventas";
 import Stock from "./components/Stock";
 import Reportes from "./components/Reportes";
 import Login from "./components/Login";
+import Profile from "./components/Profile";
+import Users from "./components/Users";
 
 window.addEventListener('error', e => {
   if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
@@ -33,6 +36,7 @@ function App() {
   const [vistaActual, setVistaActual] = useState("dashboard");
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showUserProfile, setShowUserProfile] = useState(false);
 
   useEffect(() => {
     // Verificar si hay sesión guardada
@@ -58,13 +62,17 @@ function App() {
     setVistaActual("dashboard");
   };
 
+  const handleUserUpdate = (updatedUser) => {
+    setUser(updatedUser);
+  };
+
   // Si no está autenticado, mostrar login
   if (!isAuthenticated) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
   // Si es CAJERO, mostrar solo pantalla de ventas SIN navegación
-  if (user.rol === "cajero") {
+  if (user.rol === "cajero" || user.rol === "CAJERO") {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
         {/* Header simple para cajero */}
@@ -187,22 +195,34 @@ function App() {
                 ARCA
               </a>
 
-              {/* User Info */}
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <UserIcon size={18} />
-                  <span style={{ fontWeight: 600 }}>
-                    {user.nombre_completo || user.username}
-                  </span>
-                </div>
-              </div>
+              {/* User Info - Clickeable */}
+              <button
+                onClick={() => setShowUserProfile(true)}
+                style={{
+                  textAlign: "right",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.5rem 1rem",
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  color: "white",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  borderRadius: "0.5rem",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: "0.875rem",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)")
+                }
+              >
+                <UserIcon size={18} />
+                <span>{user.nombre_completo || user.username}</span>
+              </button>
 
               {/* Botón Salir */}
               <button
@@ -239,11 +259,20 @@ function App() {
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
           <Ventas />
         </div>
+
+        {/* Modal de Perfil */}
+        {showUserProfile && (
+          <Profile
+            onClose={() => setShowUserProfile(false)}
+            currentUser={user}
+            onUserUpdate={handleUserUpdate}
+          />
+        )}
       </div>
     );
   }
 
-  // Si es ADMIN, mostrar con navegación completa
+  // Si es ADMIN o SUPERADMIN, mostrar con navegación completa
   const menuItems = [
     { id: "dashboard", nombre: "Inicio", icono: Home, componente: Dashboard },
     { id: "stock", nombre: "Stock", icono: Package, componente: Stock },
@@ -254,6 +283,22 @@ function App() {
       componente: Reportes,
     },
   ];
+
+  // Si es SUPERADMIN, agregar opciones exclusivas
+  if (user.rol === "superadmin" || user.rol === "SUPERADMIN") {
+    menuItems.push({
+      id: "users",
+      nombre: "Usuarios",
+      icono: UsersIcon,
+      componente: Users,
+    });
+    menuItems.push({
+      id: "ventas",
+      nombre: "Ventas",
+      icono: ShoppingCart,
+      componente: Ventas,
+    });
+  }
 
   const ComponenteActual = menuItems.find(
     (item) => item.id === vistaActual
@@ -295,23 +340,34 @@ function App() {
             </h1>
           </div>
 
-          {/* User Info */}
+          {/* User Info - Clickeable */}
           <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <div style={{ textAlign: "right" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <UserIcon size={20} />
-                <span style={{ fontWeight: 600 }}>
-                  {user.nombre_completo || user.username}
-                </span>
-              </div>
-            </div>
+            <button
+              onClick={() => setShowUserProfile(true)}
+              style={{
+                textAlign: "right",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 1rem",
+                backgroundColor: "rgba(255,255,255,0.1)",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: "0.5rem",
+                cursor: "pointer",
+                fontWeight: 600,
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.2)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.1)")
+              }
+            >
+              <UserIcon size={20} />
+              <span>{user.nombre_completo || user.username}</span>
+            </button>
             <button
               onClick={handleLogout}
               style={{
@@ -341,7 +397,7 @@ function App() {
         </div>
       </div>
 
-      {/* Navigation - Solo para Admin */}
+      {/* Navigation - Para Admin y Superadmin */}
       <div
         style={{
           backgroundColor: "white",
@@ -396,6 +452,15 @@ function App() {
       <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
         {ComponenteActual && <ComponenteActual />}
       </div>
+
+      {/* Modal de Perfil */}
+      {showUserProfile && (
+        <Profile
+          onClose={() => setShowUserProfile(false)}
+          currentUser={user}
+          onUserUpdate={handleUserUpdate}
+        />
+      )}
     </div>
   );
 }

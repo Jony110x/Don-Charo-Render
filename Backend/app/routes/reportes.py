@@ -157,22 +157,6 @@ def productos_mas_vendidos(
         "total": float(p.total)
     } for p in productos]
 
-@router.get("/ventas-por-horario")
-def ventas_por_horario(
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_user)
-):
-    horarios = db.query(
-        extract('hour', models.Venta.fecha).label('hora'),
-        func.count(models.Venta.id).label('cantidad'),
-        func.sum(models.Venta.total).label('total')
-    ).group_by('hora').order_by('hora').all()
-    
-    return [{
-        "hora": f"{int(h.hora):02d}:00",
-        "cantidad": h.cantidad,
-        "total": float(h.total)
-    } for h in horarios]
 
 @router.get("/ganancias")
 def ganancias(
