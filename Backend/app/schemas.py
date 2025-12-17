@@ -56,8 +56,8 @@ class ProductoCreate(ProductoBase):
 
 class ProductoUpdate(BaseModel):
     nombre: Optional[str] = None
-    precio_costo: Optional[float] = None  # NUEVO
-    precio_venta: Optional[float] = None  # CAMBIADO
+    precio_costo: Optional[float] = None  
+    precio_venta: Optional[float] = None 
     stock: Optional[int] = None
     categoria: Optional[str] = None
     codigo_barras: Optional[str] = None

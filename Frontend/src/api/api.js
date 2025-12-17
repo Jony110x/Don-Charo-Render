@@ -1,4 +1,12 @@
 import axios from 'axios';
+import { isOnline } from '../utils/connectionDetector';
+import { 
+  getAllProductos, 
+  searchProductos, 
+  getProductoByCodigo,
+  saveProductos,
+  updateProductoStock
+} from '../utils/indexedDB';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -46,7 +54,39 @@ export const register = (userData) => api.post('/auth/register', userData);
 export const getCurrentUser = () => api.get('/auth/me');
 
 // Productos - CON PAGINACIÓN Y FILTROS
-export const getProductos = (params = {}) => {
+export const getProductos = async (params = {}) => {
+  // Si está offline, usar IndexedDB
+  if (!isOnline()) {
+    console.log('📴 OFFLINE: Usando productos de IndexedDB');
+    
+    try {
+      let productos;
+      
+      if (params.busqueda) {
+        productos = await searchProductos(params.busqueda);
+      } else {
+        productos = await getAllProductos();
+      }
+      
+      // Simular respuesta paginada
+      const skip = params.skip || 0;
+      const limit = params.limit || 50;
+      const productosPaginados = productos.slice(skip, skip + limit);
+      
+      return {
+        data: {
+          productos: productosPaginados,
+          total: productos.length,
+          has_more: (skip + limit) < productos.length
+        }
+      };
+    } catch (error) {
+      console.error('Error obteniendo productos offline:', error);
+      throw error;
+    }
+  }
+  
+  // Si está online, hacer request normal
   const queryParams = new URLSearchParams();
   
   if (params.skip !== undefined) queryParams.append('skip', params.skip);
@@ -55,8 +95,16 @@ export const getProductos = (params = {}) => {
   if (params.categoria && params.categoria !== 'todas') queryParams.append('categoria', params.categoria);
   if (params.estado_stock && params.estado_stock !== 'todos') queryParams.append('estado_stock', params.estado_stock);
   
-  return api.get(`/productos/?${queryParams.toString()}`);
+  const response = await api.get(`/productos/?${queryParams.toString()}`);
+  
+  // Guardar en cache
+  if (response.data.productos) {
+    await saveProductos(response.data.productos);
+  }
+  
+  return response;
 };
+
 export const getCategorias = (params = {}) => {
   const queryParams = new URLSearchParams();
   if (params.skip !== undefined) queryParams.append('skip', params.skip);
@@ -82,7 +130,22 @@ export const getProductosStockCritico = (params = {}) => {
   return api.get(`/productos/stock/critico?${queryParams.toString()}`);
 };
 
-export const buscarPorCodigo = (codigo) => api.get(`/productos/buscar-codigo?codigo=${codigo}`);
+export const buscarPorCodigo = async (codigo) => {
+  // Si está offline, buscar en IndexedDB
+  if (!isOnline()) {
+    console.log('📴 OFFLINE: Buscando código en IndexedDB');
+    const producto = await getProductoByCodigo(codigo);
+    
+    if (!producto) {
+      throw new Error('Producto no encontrado');
+    }
+    
+    return { data: producto };
+  }
+  
+  // Si está online, buscar en servidor
+  return api.get(`/productos/buscar-codigo?codigo=${codigo}`);
+};
 
 // Ventas
 export const getVentas = () => api.get('/ventas/');
@@ -139,12 +202,9 @@ export const getCotizaciones = async () => {
     if (cachedRates && cachedTime) {
       const timeSinceCache = Date.now() - parseInt(cachedTime);
       if (timeSinceCache < CACHE_DURATION) {
-        console.log('✅ Usando cotizaciones en cache');
         return JSON.parse(cachedRates);
       }
     }
-
-    console.log('🔄 Actualizando cotizaciones...');
 
     // Obtener cotizaciones en paralelo
     const [dolarData, realData] = await Promise.all([
@@ -175,12 +235,6 @@ export const getCotizaciones = async () => {
 
     localStorage.setItem(CACHE_KEY, JSON.stringify(rates));
     localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
-
-    console.log('✅ Cotizaciones actualizadas:', {
-      'Dólar Promedio': `$${dolarPromedio.toFixed(2)}`,
-      'Real Promedio': `$${realPromedio.toFixed(2)}`
-    });
-
     return rates;
 
   } catch (error) {

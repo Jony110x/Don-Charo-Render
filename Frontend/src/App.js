@@ -9,6 +9,9 @@ import {
   Smartphone,
   FileText,
   Users as UsersIcon,
+  Wifi,
+  WifiOff,
+  RefreshCw
 } from "lucide-react";
 import Dashboard from "./components/Dashboard";
 import Ventas from "./components/Ventas";
@@ -17,6 +20,7 @@ import Reportes from "./components/Reportes";
 import Login from "./components/Login";
 import Profile from "./components/Profile";
 import Users from "./components/Users";
+import { OfflineProvider, useOffline } from "./context/OfflineContext";
 
 window.addEventListener('error', e => {
   if (e.message === 'ResizeObserver loop completed with undelivered notifications.') {
@@ -32,11 +36,156 @@ window.addEventListener('error', e => {
   }
 });
 
-function App() {
+// Banner de estado offline/online
+const OfflineBanner = () => {
+  const { isOnline, isSyncing, ventasPendientes, triggerSync, isLoadingProducts, productosProgress } = useOffline();
+
+  // Mostrar banner de carga inicial de productos
+  if (isLoadingProducts) {
+    const percentage = productosProgress.total > 0 
+      ? Math.round((productosProgress.current / productosProgress.total) * 100)
+      : 0;
+    
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 9999,
+        backgroundColor: '#dbeafe',
+        color: '#1e40af',
+        padding: '0.75rem',
+        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '0.5rem',
+        fontSize: '0.875rem',
+        fontWeight: 600
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+          <span>
+            📦 Cargando productos: {productosProgress.current.toLocaleString()} / {productosProgress.total.toLocaleString()} ({percentage}%)
+          </span>
+        </div>
+        {/* Barra de progreso */}
+        <div style={{
+          width: '300px',
+          height: '8px',
+          backgroundColor: '#e5e7eb',
+          borderRadius: '4px',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            width: `${percentage}%`,
+            height: '100%',
+            backgroundColor: '#3b82f6',
+            transition: 'width 0.3s ease'
+          }} />
+        </div>
+        <style>
+          {`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}
+        </style>
+      </div>
+    );
+  }
+
+  if (isOnline && !isSyncing && ventasPendientes === 0) {
+    return null; // No mostrar nada si está online y sincronizado
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 9999,
+      backgroundColor: isOnline ? '#fef3c7' : '#fee2e2',
+      color: isOnline ? '#92400e' : '#991b1b',
+      padding: '0.75rem',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '1rem',
+      fontSize: '0.875rem',
+      fontWeight: 600
+    }}>
+      {isSyncing ? (
+        <>
+          <RefreshCw size={18} style={{ animation: 'spin 1s linear infinite' }} />
+          <span>Sincronizando datos...</span>
+        </>
+      ) : !isOnline ? (
+        <>
+          <WifiOff size={18} />
+          <span>⚠️ MODO OFFLINE - Las ventas se guardarán localmente</span>
+          {ventasPendientes > 0 && (
+            <span style={{ 
+              backgroundColor: '#991b1b', 
+              color: 'white', 
+              padding: '0.25rem 0.5rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem'
+            }}>
+              {ventasPendientes} venta{ventasPendientes !== 1 ? 's' : ''} pendiente{ventasPendientes !== 1 ? 's' : ''}
+            </span>
+          )}
+        </>
+      ) : ventasPendientes > 0 ? (
+        <>
+          <Wifi size={18} />
+          <span>📤 {ventasPendientes} venta{ventasPendientes !== 1 ? 's' : ''} pendiente{ventasPendientes !== 1 ? 's' : ''} de sincronizar</span>
+          <button
+            onClick={triggerSync}
+            style={{
+              padding: '0.25rem 0.75rem',
+              backgroundColor: '#92400e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem'
+            }}
+          >
+            <RefreshCw size={14} />
+            Sincronizar ahora
+          </button>
+        </>
+      ) : null}
+      
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </div>
+  );
+};
+
+// Componente interno que usa el contexto
+function AppContent() {
   const [vistaActual, setVistaActual] = useState("dashboard");
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const { isOnline, ventasPendientes } = useOffline();
 
   useEffect(() => {
     // Verificar si hay sesión guardada
@@ -75,6 +224,9 @@ function App() {
   if (user.rol === "cajero" || user.rol === "CAJERO") {
     return (
       <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
+        {/* Banner de estado offline */}
+        <OfflineBanner />
+        
         {/* Header simple para cajero */}
         <div
           style={{
@@ -82,6 +234,8 @@ function App() {
             color: "white",
             padding: "1rem 1.5rem",
             boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+            marginTop: (!isOnline || ventasPendientes > 0) ? '50px' : '0',
+            transition: 'margin-top 0.3s ease'
           }}
         >
           <div
@@ -104,9 +258,16 @@ function App() {
                   objectFit: "contain"
                 }}
               />
-              <h1 style={{ fontSize: "1.5rem", fontWeight: "bold" }}>
-                Sistema de Ventas - Don Charo
-              </h1>
+              <div>
+                <h1 style={{ fontSize: "1.5rem", fontWeight: "bold", margin: 0 }}>
+                  Sistema de Ventas - Don Charo
+                </h1>
+                {!isOnline && (
+                  <div style={{ fontSize: "0.75rem", marginTop: "0.25rem", opacity: 0.9 }}>
+                    🔴 Modo Offline
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Botones de acceso rápido + User Info */}
@@ -306,6 +467,9 @@ function App() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
+      {/* Banner de estado offline */}
+      <OfflineBanner />
+      
       {/* Header */}
       <div
         style={{
@@ -313,6 +477,8 @@ function App() {
           color: "white",
           padding: "0.8rem",
           boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+          marginTop: (!isOnline || ventasPendientes > 0) ? '50px' : '0',
+          transition: 'margin-top 0.3s ease'
         }}
       >
         <div
@@ -335,9 +501,16 @@ function App() {
                 objectFit: "contain"
               }}
             />
-            <h1 style={{ fontSize: "2rem", fontWeight: "bold" }}>
-              Autoservicio Don Charo
-            </h1>
+            <div>
+              <h1 style={{ fontSize: "2rem", fontWeight: "bold", margin: 0 }}>
+                Autoservicio Don Charo
+              </h1>
+              {!isOnline && (
+                <div style={{ fontSize: "0.875rem", marginTop: "0.25rem", opacity: 0.9 }}>
+                  🔴 Modo Offline
+                </div>
+              )}
+            </div>
           </div>
 
           {/* User Info - Clickeable */}
@@ -462,6 +635,15 @@ function App() {
         />
       )}
     </div>
+  );
+}
+
+// Componente principal con Provider
+function App() {
+  return (
+    <OfflineProvider>
+      <AppContent />
+    </OfflineProvider>
   );
 }
 

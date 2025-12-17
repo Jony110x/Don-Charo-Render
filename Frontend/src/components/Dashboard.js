@@ -63,21 +63,14 @@ const Dashboard = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      console.log('🔄 Iniciando carga de datos del dashboard...');
-      
       const dashboardRes = await getDashboardHoy();
-      console.log('✅ Dashboard cargado:', dashboardRes.data);
       setStats(dashboardRes.data);
-      
-      // Cargar primera página de productos con stock bajo y crítico
-      console.log('🔄 Cargando productos con stock...');
       
       // Ejecutar en paralelo y esperar a que ambas terminen
       await Promise.allSettled([
         cargarStockBajo(0, true),
         cargarStockCritico(0, true)
       ]).then(results => {
-        console.log('✅ Resultados de carga:', results);
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             console.error(`❌ Falló carga ${index === 0 ? 'stock bajo' : 'stock crítico'}:`, result.reason);
@@ -85,13 +78,10 @@ const Dashboard = () => {
         });
       });
       
-      console.log('✅ Carga completa de dashboard');
-      
     } catch (error) {
       console.error('❌ Error cargando dashboard:', error);
       toast.error('Error al cargar datos del dashboard');
     } finally {
-      console.log('🏁 Finalizando carga, setting loading = false');
       setLoading(false);
     }
   };
@@ -99,41 +89,27 @@ const Dashboard = () => {
   const cargarStockBajo = async (skipValue, reset = false) => {
     // Si no se proporciona skipValue, usar el estado actual
     const currentSkip = skipValue !== undefined ? skipValue : skipBajo;
-    
-    console.log('🟢 cargarStockBajo INICIADO:', { skipValue, currentSkip, reset, hasMoreBajo });
-    
+
     if (!hasMoreBajo && !reset) {
-      console.log('⏭️ Saltando carga - no hay más productos');
       return;
     }
-    
     try {
       if (!reset) setLoadingMoreBajo(true);
-      
-      console.log('📦 Cargando stock bajo con params:', { skip: currentSkip, limit: LIMIT_BAJO });
-      
       const response = await getProductosStockBajo({
         skip: currentSkip,
         limit: LIMIT_BAJO
       });
       
-      console.log('✅ Respuesta stock bajo:', response.data);
-      
       const { productos, total, has_more } = response.data;
       
-      console.log('📊 Datos parseados:', { productos: productos?.length, total, has_more });
-      
       if (reset) {
-        console.log('🔄 RESET - Seteando productos y skip inicial');
         setProductosStockBajo(productos || []);
         setSkipBajo(LIMIT_BAJO); // Inicializar skip para la próxima carga
       } else {
-        console.log('➕ APPEND - Agregando productos');
         setProductosStockBajo(prev => [...prev, ...(productos || [])]);
         setSkipBajo(currentSkip + LIMIT_BAJO); // Incrementar skip
       }
       
-      console.log('💾 Seteando totales:', { total, has_more });
       setTotalBajo(total || 0);
       setHasMoreBajo(has_more || false);
       
@@ -145,7 +121,6 @@ const Dashboard = () => {
         toast.warning(mensaje);
       }
       
-      console.log('✅ cargarStockBajo COMPLETADO');
     } catch (error) {
       console.error('❌ Error cargando stock bajo:', error);
       console.error('Error details:', error.response?.data);
@@ -158,40 +133,26 @@ const Dashboard = () => {
     // Si no se proporciona skipValue, usar el estado actual
     const currentSkip = skipValue !== undefined ? skipValue : skipCritico;
     
-    console.log('🔴 cargarStockCritico INICIADO:', { skipValue, currentSkip, reset, hasMoreCritico });
-    
     if (!hasMoreCritico && !reset) {
-      console.log('⏭️ Saltando carga - no hay más productos');
       return;
     }
-    
     try {
       if (!reset) setLoadingMoreCritico(true);
-      
-      console.log('📦 Cargando stock crítico con params:', { skip: currentSkip, limit: LIMIT_CRITICO });
-      
       const response = await getProductosStockCritico({
         skip: currentSkip,
         limit: LIMIT_CRITICO
       });
       
-      console.log('✅ Respuesta stock crítico:', response.data);
-      
       const { productos, total, has_more } = response.data;
-      
-      console.log('📊 Datos parseados:', { productos: productos?.length, total, has_more });
-      
+  
       if (reset) {
-        console.log('🔄 RESET - Seteando productos y skip inicial');
         setProductosStockCritico(productos || []);
         setSkipCritico(LIMIT_CRITICO); // Inicializar skip para la próxima carga
       } else {
-        console.log('➕ APPEND - Agregando productos');
         setProductosStockCritico(prev => [...prev, ...(productos || [])]);
         setSkipCritico(currentSkip + LIMIT_CRITICO); // Incrementar skip
       }
       
-      console.log('💾 Seteando totales:', { total, has_more });
       setTotalCritico(total || 0);
       setHasMoreCritico(has_more || false);
       
@@ -203,7 +164,6 @@ const Dashboard = () => {
         toast.error(mensaje);
       }
       
-      console.log('✅ cargarStockCritico COMPLETADO');
     } catch (error) {
       console.error('❌ Error cargando stock crítico:', error);
       console.error('Error details:', error.response?.data);
@@ -219,7 +179,6 @@ const Dashboard = () => {
     
     observerBajoRef.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMoreBajo) {
-        console.log('🔍 Intersection Observer detectado - Cargando más stock bajo');
         cargarStockBajo(skipBajo); // Pasar el skip actual
       }
     });
@@ -234,7 +193,6 @@ const Dashboard = () => {
     
     observerCriticoRef.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && hasMoreCritico) {
-        console.log('🔍 Intersection Observer detectado - Cargando más stock crítico');
         cargarStockCritico(skipCritico); // Pasar el skip actual
       }
     });
@@ -443,16 +401,7 @@ const Dashboard = () => {
         minHeight: 0,
         overflow: 'hidden'
       }}>
-        {(() => {
-          console.log('🎨 RENDERIZANDO alertas:', {
-            totalCritico,
-            totalBajo,
-            productosStockCritico: productosStockCritico?.length,
-            productosStockBajo: productosStockBajo?.length,
-            loading
-          });
-          return null;
-        })()}
+        
         {loading ? (
           <>
             {/* Skeleton para productos con stock crítico */}
@@ -569,15 +518,6 @@ const Dashboard = () => {
                     flexDirection: 'column',
                     padding: '0 1.25rem 1.25rem 1.25rem'
                   }}>
-                    {(() => {
-                      console.log('🔍 Intentando renderizar productos críticos:', {
-                        array: productosStockCritico,
-                        length: productosStockCritico?.length,
-                        isArray: Array.isArray(productosStockCritico),
-                        primerProducto: productosStockCritico?.[0]
-                      });
-                      return null;
-                    })()}
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
@@ -713,15 +653,6 @@ const Dashboard = () => {
                     flexDirection: 'column',
                     padding: '0 1.25rem 1.25rem 1.25rem'
                   }}>
-                    {(() => {
-                      console.log('🔍 Intentando renderizar productos bajo:', {
-                        array: productosStockBajo,
-                        length: productosStockBajo?.length,
-                        isArray: Array.isArray(productosStockBajo),
-                        primerProducto: productosStockBajo?.[0]
-                      });
-                      return null;
-                    })()}
                     <div style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 

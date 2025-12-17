@@ -10,7 +10,7 @@ from app import models
 
 SECRET_KEY = "tu-clave-secreta-super-segura-cambiar-en-produccion"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 horas
+ACCESS_TOKEN_EXPIRE_MINUTES = 1440  # 24 horas
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()

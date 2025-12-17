@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, ShoppingCart, Trash2, Scan, DollarSign, Banknote } from 'lucide-react';
 import { getProductos, createVenta, buscarPorCodigo, getCotizaciones } from '../api/api';
 import { useToast } from '../Toast';
+import { useOffline } from '../context/OfflineContext';
+import { 
+  saveVentaPendiente, 
+  updateProductoStock 
+} from '../utils/indexedDB';
 
 // Componente de tarjeta de producto memoizado
 const ProductCard = React.memo(({ producto, onAgregar, monedaSeleccionada, cotizaciones }) => {
@@ -162,6 +167,7 @@ const Ventas = () => {
   const [productos, setProductos] = useState([]);
   const [carrito, setCarrito] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaDebounced, setBusquedaDebounced] = useState('');
   const [codigoBarras, setCodigoBarras] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -179,7 +185,13 @@ const Ventas = () => {
   const codigoInputRef = useRef(null);
   const gridRef = useRef(null);
   const observerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const requestIdRef = useRef(0);
   const toast = useToast();
+  
+  // Hook offline
+  const { isOnline, updateVentasPendientes } = useOffline();
 
   useEffect(() => {
     cargarCotizaciones();
@@ -200,9 +212,40 @@ const Ventas = () => {
     return () => document.removeEventListener('keypress', handleGlobalKeyPress);
   }, [carrito]);
 
-  // Cargar productos cuando cambia la búsqueda
+  // Debounce para búsqueda
   useEffect(() => {
-    if (busqueda.length > 0) {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+
+    if (busqueda.trim() === '') {
+      setBusquedaDebounced('');
+      return;
+    }
+
+    const valorActual = busqueda;
+    
+    debounceTimerRef.current = setTimeout(() => {
+      setBusquedaDebounced(valorActual);
+      debounceTimerRef.current = null;
+    }, 200);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [busqueda]);
+
+  // Cargar productos cuando cambia la búsqueda DEBOUNCED
+  useEffect(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    if (busquedaDebounced.length > 0) {
       setProductos([]);
       setSkip(0);
       setHasMore(true);
@@ -211,7 +254,13 @@ const Ventas = () => {
       setProductos([]);
       setTotal(0);
     }
-  }, [busqueda]);
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [busquedaDebounced]);
 
   const cargarCotizaciones = async () => {
     try {
@@ -224,7 +273,12 @@ const Ventas = () => {
 
   const cargarProductos = async (skipValue = skip, reset = false) => {
     if (!hasMore && !reset) return;
-    if (!busqueda && !reset) return; // Solo cargar si hay búsqueda
+    if (!busquedaDebounced && !reset) return;
+    
+    requestIdRef.current += 1;
+    const thisRequestId = requestIdRef.current;
+    
+    abortControllerRef.current = new AbortController();
     
     try {
       if (reset) {
@@ -236,10 +290,15 @@ const Ventas = () => {
       const params = {
         skip: skipValue,
         limit: LIMIT,
-        ...(busqueda && { busqueda })
+        ...(busquedaDebounced && { busqueda: busquedaDebounced })
       };
 
       const response = await getProductos(params);
+      
+      if (thisRequestId !== requestIdRef.current) {
+        return;
+      }
+      
       const { productos: nuevosProductos, total: totalProductos, has_more } = response.data;
 
       // Filtrar solo productos con stock
@@ -256,11 +315,15 @@ const Ventas = () => {
       setSkip(skipValue + LIMIT);
 
     } catch (error) {
-      console.error('Error cargando productos:', error);
-      toast.error('Error al cargar productos');
+      if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
+        console.error('Error cargando productos:', error);
+        toast.error('Error al cargar productos');
+      }
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (thisRequestId === requestIdRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -270,13 +333,13 @@ const Ventas = () => {
     if (observerRef.current) observerRef.current.disconnect();
     
     observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && busqueda.length > 0) {
+      if (entries[0].isIntersecting && hasMore && busquedaDebounced.length > 0) {
         cargarProductos();
       }
     });
     
     if (node) observerRef.current.observe(node);
-  }, [loading, loadingMore, hasMore, skip, busqueda]);
+  }, [loading, loadingMore, hasMore, skip, busquedaDebounced]);
 
   const convertirPrecio = (precioARS) => {
     if (monedaSeleccionada === 'USD') {
@@ -367,7 +430,7 @@ const Ventas = () => {
         }];
       }
     });
-  }, []); // Sin dependencias para evitar recreaciones
+  }, [toast]);
 
   const modificarCantidad = useCallback((producto_id, nuevaCantidad) => {
     if (nuevaCantidad <= 0) {
@@ -391,7 +454,7 @@ const Ventas = () => {
           : item
       );
     });
-  }, []);
+  }, [toast]);
 
   const eliminarDelCarrito = useCallback((producto_id) => {
     setCarrito(prevCarrito => prevCarrito.filter(item => item.producto_id !== producto_id));
@@ -413,12 +476,59 @@ const Ventas = () => {
         metodo_pago: metodoPago
       };
 
+      // MODO OFFLINE
+      if (!isOnline) {
+        console.log('📴 OFFLINE: Guardando venta localmente');
+        
+        // Guardar venta en cola
+        await saveVentaPendiente(ventaData);
+        
+        // Actualizar stock local
+        for (const item of carrito) {
+          const producto = productos.find(p => p.id === item.producto_id);
+          if (producto) {
+            const nuevoStock = producto.stock - item.cantidad;
+            await updateProductoStock(item.producto_id, nuevoStock);
+            
+            // Actualizar el stock en el estado local también
+            setProductos(prevProductos => 
+              prevProductos.map(p => 
+                p.id === item.producto_id 
+                  ? { ...p, stock: nuevoStock }
+                  : p
+              )
+            );
+          }
+        }
+        
+        // Actualizar contador de ventas pendientes
+        await updateVentasPendientes();
+        
+        toast.success('✅ Venta guardada localmente (se sincronizará al conectar)');
+        setCarrito([]);
+        
+        // Recargar productos si hay búsqueda activa
+        if (busquedaDebounced.length > 0) {
+          setProductos([]);
+          setSkip(0);
+          setHasMore(true);
+          cargarProductos(0, true);
+        }
+        
+        if (codigoInputRef.current) {
+          codigoInputRef.current.focus();
+        }
+        
+        return;
+      }
+
+      // MODO ONLINE (código original)
       await createVenta(ventaData);
       toast.success('Venta registrada exitosamente!');
       setCarrito([]);
       
       // Recargar productos si hay búsqueda activa
-      if (busqueda.length > 0) {
+      if (busquedaDebounced.length > 0) {
         setProductos([]);
         setSkip(0);
         setHasMore(true);
@@ -436,12 +546,12 @@ const Ventas = () => {
 
   const totalCarrito = carrito.reduce((sum, item) => sum + (getPrecioFinal(item.precio_unitario) * item.cantidad), 0);
 
-  const mostrarProductos = busqueda.length > 0;
+  const mostrarProductos = busquedaDebounced.length > 0;
 
   return (
     <div style={{ 
       padding: '1rem',
-      height: 'calc(100vh - 140px)', // Ajustado para dejar espacio al header
+      height: 'calc(100vh - 140px)',
       overflow: 'hidden'
     }}>
       {/* Agregar estilos de animación pulse */}
@@ -469,10 +579,10 @@ const Ventas = () => {
           display: 'flex', 
           flexDirection: 'column', 
           minHeight: 0,
-          height: '100%' // Forzar altura completa
+          height: '100%'
         }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.75rem', flexShrink: 0 }}>
-            Nueva Venta
+            Nueva Venta {!isOnline && <span style={{ color: '#ef4444', fontSize: '0.875rem' }}>🔴 OFFLINE</span>}
           </h2>
 
           {/* Lector de Código de Barras */}
@@ -540,7 +650,7 @@ const Ventas = () => {
             </div>
           </div>
 
-          {/* Productos con scroll infinito - ALTURA LIMITADA */}
+          {/* Productos con scroll infinito */}
           <div style={{ 
             flex: 1, 
             minHeight: 0,
@@ -590,9 +700,8 @@ const Ventas = () => {
                 gap: '0.5rem',
                 overflowY: 'auto',
                 overflowX: 'hidden',
-                height: '100%', // IMPORTANTE: Altura fija
+                height: '100%',
                 paddingRight: '0.5rem',
-                // Optimización de scroll
                 willChange: 'transform',
                 contain: 'layout style paint'
               }}>
@@ -618,7 +727,6 @@ const Ventas = () => {
                       );
                     })}
                     
-                    {/* Indicador de carga al final */}
                     {loadingMore && (
                       <div style={{ 
                         gridColumn: '1 / -1',
@@ -630,7 +738,6 @@ const Ventas = () => {
                       </div>
                     )}
                     
-                    {/* Mensaje cuando no hay más productos */}
                     {!hasMore && productos.length > 0 && (
                       <div style={{ 
                         gridColumn: '1 / -1',
@@ -897,7 +1004,7 @@ const Ventas = () => {
                       color: 'white'
                     }}
                   >
-                    Finalizar Venta
+                    {!isOnline ? '💾 Guardar Venta (Offline)' : 'Finalizar Venta'}
                   </button>
                 </div>
               </>
