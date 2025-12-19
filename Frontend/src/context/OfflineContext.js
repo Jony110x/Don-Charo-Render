@@ -111,21 +111,22 @@ export const OfflineProvider = ({ children }) => {
 
       // ✅ CLAVE: Solo sincronizar si cambió de offline a online
       if (!prevOnlineState && online && status === 'online') {
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
-        if (user.rol === 'CAJERO' || user.rol === 'cajero') {
-          console.log('✅ Conexión restaurada - Auto-sincronizando en 3 segundos...');
-          
-          // Limpiar timeout previo si existe
-          if (syncTimeoutId) {
-            clearTimeout(syncTimeoutId);
-          }
-          
-          syncTimeoutId = setTimeout(() => {
-            console.log('🔄 Ejecutando auto-sincronización...');
-            triggerSync();
-          }, 3000); // 3 segundos para asegurar conexión estable
-        }
-      }
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  if (user.rol === 'CAJERO' || user.rol === 'cajero') {
+    console.log('✅ Conexión restaurada - verificando sync y productos...');
+
+    if (syncTimeoutId) clearTimeout(syncTimeoutId);
+
+    syncTimeoutId = setTimeout(async () => {
+      console.log('🔄 Ejecutando auto-sincronización...');
+      await triggerSync();
+
+      console.log('🔍 Verificando productos...');
+      await precargarProductosSiHaceFalta();
+    }, 3000);
+  }
+}
       
       // Actualizar referencia del estado previo
       prevOnlineState = online;
@@ -183,6 +184,32 @@ export const OfflineProvider = ({ children }) => {
       setProductosProgress({ current: 0, total: 0 });
     }
   }, []);
+
+  const precargarProductosSiHaceFalta = useCallback(async () => {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  if (user.rol !== 'CAJERO' && user.rol !== 'cajero') {
+    return;
+  }
+
+  if (!isOnlineRef.current) {
+    return;
+  }
+
+  try {
+    const { countProductos } = await import('../utils/indexedDB');
+    const count = await countProductos();
+
+    if (count === 0) {
+      console.log('📦 IndexedDB sin productos - iniciando precarga automática...');
+      await precargarProductos();
+    } else {
+      console.log(`📦 IndexedDB OK (${count} productos)`);
+    }
+  } catch (error) {
+    console.error('❌ Error verificando productos:', error);
+  }
+}, [precargarProductos]);
 
   const value = {
     isOnline,

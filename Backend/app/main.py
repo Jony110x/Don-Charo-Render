@@ -1,4 +1,3 @@
-import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db, SessionLocal
@@ -6,6 +5,8 @@ from app.routes import productos, ventas, reportes, profile, users, ventasDetall
 from app.routes import auth
 from app import models
 from app.auth import get_password_hash
+from datetime import datetime
+
 
 app = FastAPI(title="Sistema Don Charo API", version="1.0.0")
 
@@ -82,5 +83,7 @@ def root():
 
 @app.get("/api/health")
 async def health_check():
-    """Endpoint simple para verificar que el servidor está disponible"""
-    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+    return {
+        "status": "ok",
+        "timestamp": datetime.now().isoformat()
+    }

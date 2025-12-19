@@ -422,6 +422,14 @@ export const clearAllData = async () => {
   }
 };
 
+export async function countProductos() {
+  const db = await getDB();
+  const tx = db.transaction('productos', 'readonly');
+  const store = tx.objectStore('productos');
+  const count = await store.count();
+  return count;
+}
+
 export default {
   initDB,
   saveProductos,

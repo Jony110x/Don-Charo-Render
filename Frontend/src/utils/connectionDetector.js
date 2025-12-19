@@ -35,43 +35,52 @@ class ConnectionDetector {
 
   // Verificar conexión real al servidor
   async checkConnection() {
-    try {
-      // Intentar hacer una petición al servidor con timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos timeout
-      
-      const response = await fetch('http://localhost:8000/api/health', {
-        method: 'HEAD',
-        signal: controller.signal,
-        cache: 'no-cache',
-        headers: { 'Cache-Control': 'no-cache' }
-      }).catch(() => null);
-      
-      clearTimeout(timeoutId);
-      
-      const wasOnline = this.isOnline;
-      const isNowOnline = response && response.ok;
-      
-      // Solo notificar si cambió el estado
-      if (wasOnline !== isNowOnline) {
-        console.log(`🌐 Cambio de conexión detectado: ${isNowOnline ? 'ONLINE' : 'OFFLINE'}`);
-        this.isOnline = isNowOnline;
-        this.lastStatusChange = Date.now();
-        this.notifyListeners(isNowOnline ? 'online' : 'offline', isNowOnline);
-      }
-      
-      return isNowOnline;
-    } catch (error) {
-      // Si hay error, considerar offline
-      if (this.isOnline) {
-        console.log('🌐 Conexión perdida (error en verificación)');
-        this.isOnline = false;
-        this.lastStatusChange = Date.now();
-        this.notifyListeners('offline', false);
-      }
-      return false;
+  if (!navigator.onLine) {
+    if (this.isOnline) {
+      console.log('🌐 Cambio de conexión detectado: OFFLINE');
+      this.isOnline = false;
+      this.lastStatusChange = Date.now();
+      this.notifyListeners('offline', false);
     }
+    return false;
   }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch('http://localhost:8000/api/health', {
+      method: 'GET',
+      signal: controller.signal,
+      cache: 'no-cache',
+      headers: { 'Cache-Control': 'no-cache' }
+    }).catch(() => null);
+
+    clearTimeout(timeoutId);
+
+    const wasOnline = this.isOnline;
+    const isNowOnline = !!(response && response.ok);
+
+    if (wasOnline !== isNowOnline) {
+      console.log(`🌐 Cambio de conexión detectado: ${isNowOnline ? 'ONLINE' : 'OFFLINE'}`);
+      this.isOnline = isNowOnline;
+      this.lastStatusChange = Date.now();
+      this.notifyListeners(isNowOnline ? 'online' : 'offline', isNowOnline);
+    }
+
+    return isNowOnline;
+
+  } catch (error) {
+    if (this.isOnline) {
+      console.log('🌐 Conexión perdida (error en verificación)');
+      this.isOnline = false;
+      this.lastStatusChange = Date.now();
+      this.notifyListeners('offline', false);
+    }
+    return false;
+  }
+}
+
 
   // Verificación con throttle (para evitar muchas llamadas al hacer click)
   checkConnectionThrottled() {
